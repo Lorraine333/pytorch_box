@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.distributions import uniform
 
 class SoftBox(nn.Module):
-    def __init__(self, vocab_size, embed_dim, num_class, min_init_value, delta_init_value):
+    def __init__(self, vocab_size, embed_dim, num_class, min_init_value, delta_init_value, args):
         super(SoftBox, self).__init__()
         min_embedding = self.init_word_embedding(vocab_size, embed_dim, min_init_value)
         delta_embedding = self.init_word_embedding(vocab_size, embed_dim, delta_init_value)

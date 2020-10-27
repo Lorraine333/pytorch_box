@@ -6,6 +6,10 @@ from torch.utils.data import DataLoader
 from utils import *
 from dataset import *
 from softbox import SoftBox
+from gumbel_box import GumbelBox
+
+box_model = {'softbox': SoftBox,
+             'gumbel': GumbelBox}
 
 def train_func(train_data, optimizer, criterion, device, batch_size, model):
 
@@ -59,7 +63,9 @@ def main(args):
 
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-	model = SoftBox(VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0]).to(device)
+	# model = SoftBox(VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0], args).to(device)
+	model = box_model[args.model](VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0], args).to(device)
+
 
 	wandb.watch(model)
 	min_valid_loss = float('inf')
@@ -81,23 +87,28 @@ def main(args):
 		secs = secs % 60
 
 		print('Epoch: %d' %(epoch + 1), " | time in %d minutes, %d seconds" %(mins, secs))
-		print(f'\tLoss: {train_loss:.4f}(train)\t|\tAcc: {train_acc * 100:.1f}%(train)')
-		print(f'\tLoss: {valid_loss:.4f}(valid)\t|\tAcc: {valid_acc * 100:.1f}%(valid)')
+		print(f'\tLoss: {train_loss:.8f}(train)\t|\tAcc: {train_acc * 100:.2f}%(train)')
+		print(f'\tLoss: {valid_loss:.8f}(valid)\t|\tAcc: {valid_acc * 100:.2f}%(valid)')
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--data_dir', type=str, default='./data', help='location of data')
-	parser.add_argument('--log_batch_size', type=int, default=4, help='batch size for training will be 2**LOG_BATCH_SIZE (default: 8)')
-	# Using batch sizes which are 2**n for some integer n may help optimize GPU efficiency
+	parser.add_argument('--log_batch_size', type=int, default=12, help='batch size for training will be 2**LOG_BATCH_SIZE (default: 8)')
 	parser.add_argument('--learning_rate', type=float, default=1e-2, help='learning rate (default: 1)')
-	# MinMaxSigmoidBoxes may benefit from relatively high learning rates
 	parser.add_argument('--box_embedding_dim', type=int, default=32, help='box embedding dimension (default: 10)')
 	parser.add_argument('--softplus_temp', type=float, default=1e-2, help='temperature of softplus function (default: 1)')
 	parser.add_argument('--unary_loss_weight', type=float, default=1, help='weight for unary loss during training (default: 0.01)')
 	parser.add_argument('--random_negative_sampling_ratio', type=int, default=1, help='sample this many random negatives for each positive.')
 	parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train (default: 10)')
 	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nVidia GPU)')
+
+	parser.add_argument('--model', type=str, default='gumbel', help='model type: choose from softbox, gumbel')
+	# gumbel box parameter
+	parser.add_argument('--gumbel_beta', type=float, default=1.0, help='beta value for gumbel distribution')
+	parser.add_argument('--scale', type=float, default=1.0, help='scale value for gumbel distribution')
+
+
 	args = parser.parse_args()
 	main(args)
 
