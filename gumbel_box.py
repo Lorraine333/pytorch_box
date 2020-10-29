@@ -51,11 +51,11 @@ class GumbelBox(nn.Module):
 			dim=-1) + torch.log(s)
 
 
-	def intersection(self, boxes1, boxes2, gumble_beta=1.0):
-		z = gumble_beta * torch.logsumexp(torch.stack((boxes1.min_embed / gumble_beta, boxes2.min_embed / gumble_beta)), 0)
+	def intersection(self, boxes1, boxes2):
+		z = self.gumbel_beta * torch.logsumexp(torch.stack((boxes1.min_embed / self.gumbel_beta, boxes2.min_embed / self.gumbel_beta)), 0)
 		z = torch.max(z, torch.max(boxes1.min_embed, boxes2.min_embed)) # This line is for numerical stability (you could skip it if you are not facing any issues)
 
-		Z = - gumble_beta * torch.logsumexp(torch.stack((-boxes1.max_embed / gumble_beta, -boxes2.max_embed / gumble_beta)), 0)
+		Z = - self.gumbel_beta * torch.logsumexp(torch.stack((-boxes1.max_embed / self.gumbel_beta, -boxes2.max_embed / self.gumbel_beta)), 0)
 		Z = torch.min(Z, torch.min(boxes1.max_embed, boxes2.max_embed)) # This line is for numerical stability (you could skip it if you are not facing any issues)
 
 		intersection_box = Box(z, Z)
