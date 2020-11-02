@@ -19,21 +19,21 @@ def main(args):
     template_str = dict()
     template_str['srun.sh'] = '\n'.join((
         "#!/bin/sh",
-        "module load cuda/10.0.130",
+        "module load cuda100/10.0.130",
         "export NO_PROGRESS_BAR=true",
     ))
     template_str['sbatch.sh'] = '\n'.join((
         "#!/bin/bash",
         "#SBATCH --gres=gpu:1",
-        "#SBATCH --partition=titanx-short",
+        "#SBATCH --partition=titanx-long",
         "#SBATCH --cpus-per-task=2",
         "#SBATCH --mem=16GB",
     ))
 
     for fname in ['srun.sh', 'sbatch.sh']:
-        if not template_path[fname].exists():
-            with open(template_path[fname], 'w') as f:
-                f.write(template_str[fname])
+        #if not template_path[fname].exists():
+        with open(template_path[fname], 'w') as f:
+            f.write(template_str[fname])
         os.system(f"chmod +x {template_path[fname]}")
 
     job_dir = Path(slurm_dir / args.sweep_id)
@@ -53,7 +53,7 @@ def main(args):
     file_str = dict()
     file_str['srun.sh'] = "\n".join((
         "",
-        f"wandb agent lorraine/basic_box/{args.sweep_id}",
+        f"wandb agent wenlongzhao094/pytorch_box/{args.sweep_id}",
         # f"pwd", # for testing
         # f"./test.sh", # for testing
     ))
@@ -99,3 +99,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     main(args)
+
+"""
+Call this script: python slurm_wandb_agent.py SWEEP_ID --num-jobs 20
+"""

@@ -11,14 +11,35 @@ from gumbel_box import GumbelBox
 box_model = {'softbox': SoftBox,
              'gumbel': GumbelBox}
 
-def train_func(train_data, optimizer, criterion, device, batch_size, model):
+def random_negative_sampling(samples, probs, vocab_size, ratio, num_neg_sample):
+	with torch.no_grad():
+		print('samples: ', samples.size())
+		print('probs: ', probs.size())
+		negative_samples = samples.repeat(ratio, 1)[:num_neg_sample, :] # shape (num_neg_sample, 2)
+		negative_samples[:, 1].random_(0, vocab_size)
+		negative_probs = torch.zeros(num_neg_sample, dtype=torch.long)
+		samples = torch.cat([samples, negative_samples], dim=0)
+		probs = torch.cat([probs, negative_probs], dim=0)
+		print('samples: ', samples.size())
+		print('probs: ', probs.size())
+	return samples, probs
+
+def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer, criterion, device, batch_size, model):
+	if batch_size % (random_negative_sampling_ratio+1) == 0:
+		pos_batch_size = int(batch_size/(random_negative_sampling_ratio+1))
+	else:
+		pos_batch_size = int(batch_size / random_negative_sampling_ratio)
+	neg_batch_size = batch_size - pos_batch_size
 
 	# Train the model
 	train_loss = 0
 	train_acc = 0
-	data = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+	data = DataLoader(train_data, batch_size=pos_batch_size, shuffle=True)
 	for ids, cls in data:
 		optimizer.zero_grad()
+		ids, cls = random_negative_sampling(ids, cls, vocab_size, random_negative_sampling_ratio, neg_batch_size)
+		assert ids.size()[0] == batch_size
+		assert cls.size()[0] == batch_size
 		ids, cls = ids.to(device), cls.to(device)
 		output = model(ids)
 		loss = criterion(output, cls)
@@ -54,13 +75,12 @@ def test(test_data, optimizer, criterion, device, batch_size, model):
 def main(args):
 	wandb.init(project="basic_box", config=args)
 
-	train_dataset = PairDataset(args.data_dir+'/wordnet.tsv')
-	test_dataset = PairDataset(args.data_dir+'/wordnet.tsv')
-	word2idx = get_vocab(args.data_dir+'/wordnet_vocab.tsv')
+	train_dataset = PairDataset(args.train_data_path)
+	test_dataset = PairDataset(args.test_data_path)
+	word2idx = get_vocab(args.vocab_path)
 
 	VOCAB_SIZE = len(word2idx)
 	NUN_CLASS = 2
-
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 	# model = SoftBox(VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0], args).to(device)
@@ -77,10 +97,11 @@ def main(args):
 	for epoch in range(args.epochs):
 
 		start_time = time.time()
-		train_loss, train_acc = train_func(train_dataset, optimizer, criterion, device, 2**args.log_batch_size, model)
+		train_loss, train_acc = train_func(train_dataset, VOCAB_SIZE, args.random_negative_sampling_ratio,
+										   optimizer, criterion, device, 2**args.log_batch_size, model)
 		valid_loss, valid_acc = test(test_dataset, optimizer, criterion, device, 2**args.log_batch_size, model)
 
-		wandb.log({'train loss':train_loss, 'train accuracy': train_acc, 'valid loss': valid_loss, 'valid accuracy': valid_acc})
+		wandb.log({'train loss': train_loss, 'train accuracy': train_acc, 'valid loss': valid_loss, 'valid accuracy': valid_acc})
 
 		secs = int(time.time() - start_time)
 		mins = secs / 60
@@ -93,14 +114,15 @@ def main(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--data_dir', type=str, default='./data', help='location of data')
+	parser.add_argument('--train_data_path', type=str, default='./data/full_wordnet/full_wordnet_noneg.tsv', help='path to train data')
+	parser.add_argument('--test_data_path', type=str, default='./data/full_wordnet/full_wordnet.tsv', help='path to test data')
+	parser.add_argument('--vocab_path', type=str, default='./data/full_wordnet/full_wordnet_vocab.tsv', help='path to vocab')
 	parser.add_argument('--log_batch_size', type=int, default=12, help='batch size for training will be 2**LOG_BATCH_SIZE (default: 8)')
-	parser.add_argument('--learning_rate', type=float, default=1e-2, help='learning rate (default: 1)')
-	parser.add_argument('--box_embedding_dim', type=int, default=32, help='box embedding dimension (default: 10)')
-	parser.add_argument('--softplus_temp', type=float, default=1e-2, help='temperature of softplus function (default: 1)')
-	parser.add_argument('--unary_loss_weight', type=float, default=1, help='weight for unary loss during training (default: 0.01)')
-	parser.add_argument('--random_negative_sampling_ratio', type=int, default=1, help='sample this many random negatives for each positive.')
-	parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train (default: 10)')
+	parser.add_argument('--learning_rate', type=float, default=1e-3, help='learning rate')
+	parser.add_argument('--box_embedding_dim', type=int, default=32, help='box embedding dimension')
+	parser.add_argument('--softplus_temp', type=float, default=1.0, help='temperature of softplus function, 1/rho in the smoothed box embedding paper')
+	parser.add_argument('--random_negative_sampling_ratio', type=int, default=3, help='sample this many random negatives for each positive.')
+	parser.add_argument('--epochs', type=int, default=40, help='number of epochs to train (default: 10)')
 	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nVidia GPU)')
 
 	parser.add_argument('--model', type=str, default='gumbel', help='model type: choose from softbox, gumbel')
