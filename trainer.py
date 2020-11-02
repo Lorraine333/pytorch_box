@@ -28,19 +28,21 @@ def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer
 	# Train the model
 	train_loss = 0
 	train_acc = 0
+	train_size = 0
 	data = DataLoader(train_data, batch_size=pos_batch_size, shuffle=True)
 	for ids, cls in data:
 		optimizer.zero_grad()
-		ids, cls = random_negative_sampling(ids, cls, vocab_size, random_negative_sampling_ratio, max_neg_batch_size)
-		ids, cls = ids.to(device), cls.to(device)
-		output = model(ids)
-		loss = criterion(output, cls)
+		ids_aug, cls_aug = random_negative_sampling(ids, cls, vocab_size, random_negative_sampling_ratio, max_neg_batch_size)
+		ids_aug, cls_aug = ids_aug.to(device), cls_aug.to(device)
+		output = model(ids_aug)
+		loss = criterion(output, cls_aug)
 		train_loss += loss.item()
 		loss.backward()
 		optimizer.step()
-		train_acc += (output.argmax(1) == cls).sum().item()
+		train_acc += (output.argmax(1) == cls_aug).sum().item()
+		train_size += ids_aug.size()[0]
 
-	return train_loss / len(train_data), train_acc / len(train_data)
+	return train_loss / train_size, train_acc / train_size
 
 def test(test_data, criterion, device, batch_size, model):
 	loss = 0
@@ -105,15 +107,15 @@ if __name__ == '__main__':
 	parser.add_argument('--train_data_path', type=str, default='./data/full_wordnet/full_wordnet_noneg.tsv', help='path to train data')
 	parser.add_argument('--test_data_path', type=str, default='./data/full_wordnet/full_wordnet.tsv', help='path to test data')
 	parser.add_argument('--vocab_path', type=str, default='./data/full_wordnet/full_wordnet_vocab.tsv', help='path to vocab')
-	parser.add_argument('--log_batch_size', type=int, default=12, help='batch size for training will be 2**LOG_BATCH_SIZE')
-	parser.add_argument('--learning_rate', type=float, default=1e-3, help='learning rate')
-	parser.add_argument('--box_embedding_dim', type=int, default=30, help='box embedding dimension')
+	parser.add_argument('--log_batch_size', type=int, default=13, help='batch size for training will be 2**LOG_BATCH_SIZE')
+	parser.add_argument('--learning_rate', type=float, default=5e-3, help='learning rate')
+	parser.add_argument('--box_embedding_dim', type=int, default=40, help='box embedding dimension')
 	parser.add_argument('--softplus_temp', type=float, default=1.0, help='beta of softplus function')
-	parser.add_argument('--random_negative_sampling_ratio', type=int, default=2, help='sample this many random negatives for each positive.')
+	parser.add_argument('--random_negative_sampling_ratio', type=int, default=0, help='sample this many random negatives for each positive.')
 	parser.add_argument('--epochs', type=int, default=40, help='number of epochs to train')
 	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nvidia GPU)')
 
-	parser.add_argument('--model', type=str, default='gumbel', help='model type: choose from softbox, gumbel')
+	parser.add_argument('--model', type=str, default='softbox', help='model type: choose from softbox, gumbel')
 	# gumbel box parameter
 	parser.add_argument('--gumbel_beta', type=float, default=1.0, help='beta value for gumbel distribution')
 	parser.add_argument('--scale', type=float, default=1.0, help='scale value for gumbel distribution')
@@ -121,5 +123,4 @@ if __name__ == '__main__':
 
 	args = parser.parse_args()
 	main(args)
-
 

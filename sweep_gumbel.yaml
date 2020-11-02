@@ -1,0 +1,34 @@
+program: trainer.py
+method: bayes
+metric:
+  name: valid accuracy
+  goal: maximize
+parameters:
+  log_batch_size:
+    distribution: int_uniform
+    max: 15
+    min: 9
+  box_embedding_dim:
+    distribution: int_uniform
+    max: 50
+    min: 5
+  learning_rate:
+    distribution: uniform
+    max: 0.01
+    min: 0.001
+  softplus_temp:
+    distribution: uniform
+    max: 10
+    min: 1
+  random_negative_sampling_ratio:
+    distribution: int_uniform
+    max: 100
+    min: 1
+  model:
+    distribution: categorical
+    values:
+      - gumbel
+  gumbel_beta:
+    distribution: log_uniform
+    max: 1
+    min: -5
