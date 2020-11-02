@@ -1,6 +1,7 @@
 import time
 import wandb
 import torch
+import math
 import argparse
 from torch.utils.data import DataLoader
 from utils import *
@@ -11,25 +12,18 @@ from gumbel_box import GumbelBox
 box_model = {'softbox': SoftBox,
              'gumbel': GumbelBox}
 
-def random_negative_sampling(samples, probs, vocab_size, ratio, num_neg_sample):
+def random_negative_sampling(samples, probs, vocab_size, ratio, max_num_neg_sample):
 	with torch.no_grad():
-		print('samples: ', samples.size())
-		print('probs: ', probs.size())
-		negative_samples = samples.repeat(ratio, 1)[:num_neg_sample, :] # shape (num_neg_sample, 2)
+		negative_samples = samples.repeat(ratio, 1)[:max_num_neg_sample, :]
 		negative_samples[:, 1].random_(0, vocab_size)
-		negative_probs = torch.zeros(num_neg_sample, dtype=torch.long)
+		negative_probs = torch.zeros(negative_samples.size()[0], dtype=torch.long)
 		samples = torch.cat([samples, negative_samples], dim=0)
 		probs = torch.cat([probs, negative_probs], dim=0)
-		print('samples: ', samples.size())
-		print('probs: ', probs.size())
 	return samples, probs
 
 def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer, criterion, device, batch_size, model):
-	if batch_size % (random_negative_sampling_ratio+1) == 0:
-		pos_batch_size = int(batch_size/(random_negative_sampling_ratio+1))
-	else:
-		pos_batch_size = int(batch_size / random_negative_sampling_ratio)
-	neg_batch_size = batch_size - pos_batch_size
+	pos_batch_size = math.ceil(batch_size/(random_negative_sampling_ratio+1))
+	max_neg_batch_size = batch_size - pos_batch_size
 
 	# Train the model
 	train_loss = 0
@@ -37,9 +31,7 @@ def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer
 	data = DataLoader(train_data, batch_size=pos_batch_size, shuffle=True)
 	for ids, cls in data:
 		optimizer.zero_grad()
-		ids, cls = random_negative_sampling(ids, cls, vocab_size, random_negative_sampling_ratio, neg_batch_size)
-		assert ids.size()[0] == batch_size
-		assert cls.size()[0] == batch_size
+		ids, cls = random_negative_sampling(ids, cls, vocab_size, random_negative_sampling_ratio, max_neg_batch_size)
 		ids, cls = ids.to(device), cls.to(device)
 		output = model(ids)
 		loss = criterion(output, cls)
@@ -50,13 +42,11 @@ def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer
 
 	return train_loss / len(train_data), train_acc / len(train_data)
 
-def test(test_data, optimizer, criterion, device, batch_size, model):
+def test(test_data, criterion, device, batch_size, model):
 	loss = 0
 	acc = 0
 	scores= []
 	true = 0
-	all_labels_and_scores=[]
-	# data = DataLoader(data_, batch_size=BATCH_SIZE, collate_fn=generate_batch)
 	data = DataLoader(test_data, batch_size=batch_size)
 	for ids, cls in data:
 		ids, cls = ids.to(device), cls.to(device)
@@ -71,7 +61,6 @@ def test(test_data, optimizer, criterion, device, batch_size, model):
 	return loss / len(test_data), acc / len(test_data)
 
 
-
 def main(args):
 	wandb.init(project="basic_box", config=args)
 
@@ -83,7 +72,6 @@ def main(args):
 	NUN_CLASS = 2
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-	# model = SoftBox(VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0], args).to(device)
 	model = box_model[args.model](VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0], args).to(device)
 
 
@@ -99,7 +87,7 @@ def main(args):
 		start_time = time.time()
 		train_loss, train_acc = train_func(train_dataset, VOCAB_SIZE, args.random_negative_sampling_ratio,
 										   optimizer, criterion, device, 2**args.log_batch_size, model)
-		valid_loss, valid_acc = test(test_dataset, optimizer, criterion, device, 2**args.log_batch_size, model)
+		valid_loss, valid_acc = test(test_dataset, criterion, device, 2**args.log_batch_size, model)
 
 		wandb.log({'train loss': train_loss, 'train accuracy': train_acc, 'valid loss': valid_loss, 'valid accuracy': valid_acc})
 
@@ -117,13 +105,13 @@ if __name__ == '__main__':
 	parser.add_argument('--train_data_path', type=str, default='./data/full_wordnet/full_wordnet_noneg.tsv', help='path to train data')
 	parser.add_argument('--test_data_path', type=str, default='./data/full_wordnet/full_wordnet.tsv', help='path to test data')
 	parser.add_argument('--vocab_path', type=str, default='./data/full_wordnet/full_wordnet_vocab.tsv', help='path to vocab')
-	parser.add_argument('--log_batch_size', type=int, default=12, help='batch size for training will be 2**LOG_BATCH_SIZE (default: 8)')
+	parser.add_argument('--log_batch_size', type=int, default=12, help='batch size for training will be 2**LOG_BATCH_SIZE')
 	parser.add_argument('--learning_rate', type=float, default=1e-3, help='learning rate')
-	parser.add_argument('--box_embedding_dim', type=int, default=32, help='box embedding dimension')
-	parser.add_argument('--softplus_temp', type=float, default=1.0, help='temperature of softplus function, 1/rho in the smoothed box embedding paper')
-	parser.add_argument('--random_negative_sampling_ratio', type=int, default=3, help='sample this many random negatives for each positive.')
-	parser.add_argument('--epochs', type=int, default=40, help='number of epochs to train (default: 10)')
-	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nVidia GPU)')
+	parser.add_argument('--box_embedding_dim', type=int, default=30, help='box embedding dimension')
+	parser.add_argument('--softplus_temp', type=float, default=1.0, help='beta of softplus function')
+	parser.add_argument('--random_negative_sampling_ratio', type=int, default=2, help='sample this many random negatives for each positive.')
+	parser.add_argument('--epochs', type=int, default=40, help='number of epochs to train')
+	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nvidia GPU)')
 
 	parser.add_argument('--model', type=str, default='gumbel', help='model type: choose from softbox, gumbel')
 	# gumbel box parameter
@@ -133,6 +121,5 @@ if __name__ == '__main__':
 
 	args = parser.parse_args()
 	main(args)
-
 
 
