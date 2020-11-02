@@ -25,7 +25,7 @@ def main(args):
     template_str['sbatch.sh'] = '\n'.join((
         "#!/bin/bash",
         "#SBATCH --gres=gpu:1",
-        "#SBATCH --partition=titanx-long",
+        "#SBATCH --partition=2080ti-long",
         "#SBATCH --cpus-per-task=2",
         "#SBATCH --mem=16GB",
     ))
@@ -101,5 +101,7 @@ if __name__ == '__main__':
     main(args)
 
 """
-Call this script: python slurm_wandb_agent.py SWEEP_ID --num-jobs 20
+To run:
+wandb sweep sweep.yaml
+python slurm_wandb_agent.py SWEEP_ID --num-jobs 20
 """

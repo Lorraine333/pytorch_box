@@ -26,9 +26,9 @@ def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer
 	max_neg_batch_size = batch_size - pos_batch_size
 
 	# Train the model
-	train_loss = 0
-	train_acc = 0
-	train_size = 0
+	train_loss = 0.
+	train_acc = 0.
+	train_size = 0.
 	data = DataLoader(train_data, batch_size=pos_batch_size, shuffle=True)
 	for ids, cls in data:
 		optimizer.zero_grad()
@@ -111,8 +111,8 @@ if __name__ == '__main__':
 	parser.add_argument('--learning_rate', type=float, default=5e-3, help='learning rate')
 	parser.add_argument('--box_embedding_dim', type=int, default=40, help='box embedding dimension')
 	parser.add_argument('--softplus_temp', type=float, default=1.0, help='beta of softplus function')
-	parser.add_argument('--random_negative_sampling_ratio', type=int, default=0, help='sample this many random negatives for each positive.')
-	parser.add_argument('--epochs', type=int, default=40, help='number of epochs to train')
+	parser.add_argument('--random_negative_sampling_ratio', type=int, default=1, help='sample this many random negatives for each positive.')
+	parser.add_argument('--epochs', type=int, default=80, help='number of epochs to train')
 	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nvidia GPU)')
 
 	parser.add_argument('--model', type=str, default='softbox', help='model type: choose from softbox, gumbel')

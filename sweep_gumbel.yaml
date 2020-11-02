@@ -6,7 +6,7 @@ metric:
 parameters:
   log_batch_size:
     distribution: int_uniform
-    max: 15
+    max: 14
     min: 9
   box_embedding_dim:
     distribution: int_uniform
@@ -22,8 +22,8 @@ parameters:
     min: 1
   random_negative_sampling_ratio:
     distribution: int_uniform
-    max: 100
-    min: 1
+    max: 3
+    min: 2
   model:
     distribution: categorical
     values:
