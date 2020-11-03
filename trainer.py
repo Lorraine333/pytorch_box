@@ -15,11 +15,14 @@ box_model = {'softbox': SoftBox,
 def random_negative_sampling(samples, probs, vocab_size, ratio, max_num_neg_sample):
 	with torch.no_grad():
 		negative_samples = samples.repeat(ratio, 1)[:max_num_neg_sample, :]
-		negative_samples[:, 1].random_(0, vocab_size)
+		neg_sample_size = negative_samples.size()[0]
+		x = torch.arange(neg_sample_size)
+		y = torch.randint(negative_samples.size()[1], (neg_sample_size,))
+		negative_samples[x, y] = torch.randint(vocab_size, (neg_sample_size,))
 		negative_probs = torch.zeros(negative_samples.size()[0], dtype=torch.long)
-		samples = torch.cat([samples, negative_samples], dim=0)
-		probs = torch.cat([probs, negative_probs], dim=0)
-	return samples, probs
+		samples_aug = torch.cat([samples, negative_samples], dim=0)
+		probs_aug = torch.cat([probs, negative_probs], dim=0)
+	return samples_aug, probs_aug
 
 def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer, criterion, device, batch_size, model):
 	pos_batch_size = math.ceil(batch_size/(random_negative_sampling_ratio+1))
