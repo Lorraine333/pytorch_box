@@ -10,10 +10,9 @@ class SoftBox(nn.Module):
         super(SoftBox, self).__init__()
         min_embedding = self.init_word_embedding(vocab_size, embed_dim, min_init_value)
         delta_embedding = self.init_word_embedding(vocab_size, embed_dim, delta_init_value)
-        self.temperature = 1.0
+        self.temperature = args.softplus_temp
         self.min_embedding = nn.Parameter(min_embedding)
         self.delta_embedding = nn.Parameter(delta_embedding)
-
 
     def forward(self, ids):
         """Returns box embeddings for ids"""
@@ -31,9 +30,8 @@ class SoftBox(nn.Module):
         prediction = torch.stack([pos_predictions, neg_prediction], dim=1)
         return prediction
 
-
     def volumes(self, boxes):
-        return F.softplus(boxes.delta_embed).prod(1)
+        return F.softplus(boxes.delta_embed, beta=self.temperature).prod(1)
 
     def intersection(self, boxes1, boxes2):
         intersections_min = torch.max(boxes1.min_embed, boxes2.min_embed)
@@ -50,8 +48,5 @@ class SoftBox(nn.Module):
         distribution = uniform.Uniform(init_value[0], init_value[1])
         box_embed = distribution.sample((vocab_size, embed_dim))
         return box_embed
-
-
-
 
 

@@ -14,13 +14,11 @@ class GumbelBox(nn.Module):
 		super(GumbelBox, self).__init__()
 		min_embedding = self.init_word_embedding(vocab_size, embed_dim, min_init_value)
 		delta_embedding = self.init_word_embedding(vocab_size, embed_dim, delta_init_value)
-		self.temperature = 1.0
+		self.temperature = args.softplus_temp
 		self.min_embedding = nn.Parameter(min_embedding)
 		self.delta_embedding = nn.Parameter(delta_embedding)
 		self.gumbel_beta = args.gumbel_beta
 		self.scale = args.scale
-
-
 
 	def forward(self, ids):
 		"""Returns box embeddings for ids"""
@@ -50,7 +48,6 @@ class GumbelBox(nn.Module):
 			torch.log(F.softplus(boxes.max_embed - boxes.min_embed - 2*euler_gamma*self.gumbel_beta, beta=self.temperature).clamp_min(eps)),
 			dim=-1) + torch.log(s)
 
-
 	def intersection(self, boxes1, boxes2):
 		z = self.gumbel_beta * torch.logsumexp(torch.stack((boxes1.min_embed / self.gumbel_beta, boxes2.min_embed / self.gumbel_beta)), 0)
 		z = torch.max(z, torch.max(boxes1.min_embed, boxes2.min_embed)) # This line is for numerical stability (you could skip it if you are not facing any issues)
@@ -72,8 +69,4 @@ class GumbelBox(nn.Module):
 		distribution = uniform.Uniform(init_value[0], init_value[1])
 		box_embed = distribution.sample((vocab_size, embed_dim))
 		return box_embed
-
-
-
-
 
