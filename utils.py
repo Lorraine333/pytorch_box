@@ -31,3 +31,13 @@ def get_vocab(filename):
 			parts = line.split('\t')
 			word2idx[parts[1]] = parts[0]
 	return word2idx
+
+def restore_from(model, optimizer, ckpt_path):
+	device = torch.cuda.current_device()
+	ckpt = torch.load(ckpt_path)
+	ckpt_args = ckpt['args']
+	epoch = ckpt['epoch']
+
+	model.load_state_dict(ckpt['state_dict'], strict=True)
+	optimizer.load_state_dict(ckpt['optimizer'])
+	return model, optimizer, ckpt_args, epoch

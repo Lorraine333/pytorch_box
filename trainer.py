@@ -1,9 +1,11 @@
 import time
 import wandb
 import torch
+from torch.utils.data import DataLoader
 import math
 import argparse
-from torch.utils.data import DataLoader
+import os
+import json
 from utils import *
 from dataset import *
 from softbox import SoftBox
@@ -33,6 +35,7 @@ def train_func(train_data, vocab_size, random_negative_sampling_ratio, thres, op
 	train_acc = 0.
 	train_size = 0.
 	data = DataLoader(train_data, batch_size=pos_batch_size, shuffle=True)
+	model.train()
 	for ids, cls in data:
 		optimizer.zero_grad()
 		ids_aug, cls_aug = random_negative_sampling(ids, cls, vocab_size, random_negative_sampling_ratio, max_neg_batch_size)
@@ -53,6 +56,7 @@ def test(test_data, thres, criterion, device, batch_size, model):
 	scores= []
 	true = 0
 	data = DataLoader(test_data, batch_size=batch_size)
+	model.eval()
 	for ids, cls in data:
 		ids, cls = ids.to(device), cls.to(device)
 		with torch.no_grad():
@@ -79,15 +83,17 @@ def main(args):
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 	model = box_model[args.model](VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0], args).to(device)
 
-
-	wandb.watch(model)
-	min_valid_loss = float('inf')
-
 	criterion = torch.nn.CrossEntropyLoss().to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
+	start_epoch = 0
+	if args.resume_from is not None:
+		model, optimizer, ckpt_args, ckpt_epoch = restore_from(model, optimizer, args.resume_from)
+		start_epoch = ckpt_epoch + 1
 
-	for epoch in range(args.epochs):
+	wandb.watch(model)
+
+	for epoch in range(start_epoch, args.epochs):
 
 		start_time = time.time()
 		train_loss, train_acc = train_func(train_dataset, VOCAB_SIZE, args.random_negative_sampling_ratio, args.prediction_thres,
@@ -104,12 +110,41 @@ def main(args):
 		print(f'\tLoss: {train_loss:.8f}(train)\t|\tAcc: {train_acc * 100:.2f}%(train)')
 		print(f'\tLoss: {valid_loss:.8f}(valid)\t|\tAcc: {valid_acc * 100:.2f}%(valid)')
 
+		# save model if the valid_acc is the current best or better than 99.8%
+		best_valid_acc = 0.
+		used_id = -1
+		if not os.path.exists("checkpoints"): os.mkdir("checkpoints")
+		if not os.path.exists(args.save_to): os.mkdir(args.save_to)
+		history_file = os.path.join(args.save_to, "history.json")
+		if os.path.exists(history_file):
+			with open(history_file, "r") as f:
+				history = json.loads(f.read())
+				best_valid_acc = history["best_valid_acc"]
+				used_id = history["used_id"]
+		if valid_acc > best_valid_acc:
+			best_valid_acc = valid_acc
+			torch.save({'args': args,
+						'epoch': epoch,
+						'state_dict': model.state_dict(),
+						'optimizer': optimizer.state_dict()},
+					   args.save_to + 'best_checkpoint.pth')
+		if valid_acc >= 0.998:
+			used_id += 1
+			torch.save({'args': args,
+						'epoch': epoch,
+						'state_dict': model.state_dict(),
+						'optimizer': optimizer.state_dict()},
+					   args.save_to + 'checkpoint_%d.pth' % used_id)
+		with open(history_file, "w") as f:
+			f.write(json.dumps({"best_valid_acc": best_valid_acc, "used_id": used_id}))
+
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--train_data_path', type=str, default='./data/full_wordnet/full_wordnet_noneg.tsv', help='path to train data')
 	parser.add_argument('--test_data_path', type=str, default='./data/full_wordnet/full_wordnet.tsv', help='path to test data')
 	parser.add_argument('--vocab_path', type=str, default='./data/full_wordnet/full_wordnet_vocab.tsv', help='path to vocab')
+	parser.add_argument('--resume_from', type=str, default=None, help='path to restore the model from')
 	parser.add_argument('--log_batch_size', type=int, default=13, help='batch size for training will be 2**LOG_BATCH_SIZE')
 	parser.add_argument('--learning_rate', type=float, default=5e-3, help='learning rate')
 	parser.add_argument('--box_embedding_dim', type=int, default=40, help='box embedding dimension')
@@ -126,5 +161,6 @@ if __name__ == '__main__':
 
 
 	args = parser.parse_args()
+	args.save_to = "./checkpoints/" + args.model
 	main(args)
 

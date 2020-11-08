@@ -14,7 +14,7 @@ parameters:
     min: 9
   box_embedding_dim:
     distribution: int_uniform
-    max: 50
+    max: 40
     min: 5
   learning_rate:
     distribution: uniform
@@ -28,10 +28,6 @@ parameters:
     distribution: int_uniform
     max: 3
     min: 1
-  prediction_thres:
-    distribution: uniform
-    max: 0.7
-    min: 0.3
   model:
     distribution: categorical
     values:
