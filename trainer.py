@@ -24,7 +24,7 @@ def random_negative_sampling(samples, probs, vocab_size, ratio, max_num_neg_samp
 		probs_aug = torch.cat([probs, negative_probs], dim=0)
 	return samples_aug, probs_aug
 
-def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer, criterion, device, batch_size, model):
+def train_func(train_data, vocab_size, random_negative_sampling_ratio, thres, optimizer, criterion, device, batch_size, model):
 	pos_batch_size = math.ceil(batch_size/(random_negative_sampling_ratio+1))
 	max_neg_batch_size = batch_size - pos_batch_size
 
@@ -42,12 +42,12 @@ def train_func(train_data, vocab_size, random_negative_sampling_ratio, optimizer
 		train_loss += loss.item()
 		loss.backward()
 		optimizer.step()
-		train_acc += (output.argmax(1) == cls_aug).sum().item()
+		train_acc += ((output[:, 1] >= thres).long() == cls_aug).sum().item()
 		train_size += ids_aug.size()[0]
 
 	return train_loss / train_size, train_acc / train_size
 
-def test(test_data, criterion, device, batch_size, model):
+def test(test_data, thres, criterion, device, batch_size, model):
 	loss = 0
 	acc = 0
 	scores= []
@@ -59,9 +59,9 @@ def test(test_data, criterion, device, batch_size, model):
 			output = model(ids)
 			loss = criterion(output, cls)
 			loss += loss.item()
-			acc += (output.argmax(1) == cls).sum().item()
+			acc += ((output[:, 1] >= thres).long() == cls).sum().item()
 			scores.extend(output[:, 0])
-			true+=cls.sum()
+			true += cls.sum()
 
 	return loss / len(test_data), acc / len(test_data)
 
@@ -90,9 +90,9 @@ def main(args):
 	for epoch in range(args.epochs):
 
 		start_time = time.time()
-		train_loss, train_acc = train_func(train_dataset, VOCAB_SIZE, args.random_negative_sampling_ratio,
+		train_loss, train_acc = train_func(train_dataset, VOCAB_SIZE, args.random_negative_sampling_ratio, args.prediction_thres,
 										   optimizer, criterion, device, 2**args.log_batch_size, model)
-		valid_loss, valid_acc = test(test_dataset, criterion, device, 2**args.log_batch_size, model)
+		valid_loss, valid_acc = test(test_dataset, args.prediction_thres, criterion, device, 2**args.log_batch_size, model)
 
 		wandb.log({'train loss': train_loss, 'train accuracy': train_acc, 'valid loss': valid_loss, 'valid accuracy': valid_acc})
 
@@ -117,6 +117,7 @@ if __name__ == '__main__':
 	parser.add_argument('--random_negative_sampling_ratio', type=int, default=1, help='sample this many random negatives for each positive.')
 	parser.add_argument('--epochs', type=int, default=80, help='number of epochs to train')
 	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nvidia GPU)')
+	parser.add_argument('--prediction_thres', type=float, default=0.5, help='the probability threshold for prediction')
 
 	parser.add_argument('--model', type=str, default='softbox', help='model type: choose from softbox, gumbel')
 	# gumbel box parameter

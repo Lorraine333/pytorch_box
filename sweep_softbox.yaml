@@ -3,6 +3,10 @@ method: bayes
 metric:
   name: valid accuracy
   goal: maximize
+early_terminate:
+  type: hyperband
+  min_iter: 10
+  eta: 2
 parameters:
   log_batch_size:
     distribution: int_uniform
@@ -14,8 +18,8 @@ parameters:
     min: 5
   learning_rate:
     distribution: uniform
-    max: 0.01
-    min: 0.001
+    max: 0.05
+    min: 0.0005
   softplus_temp:
     distribution: uniform
     max: 10
@@ -23,7 +27,11 @@ parameters:
   random_negative_sampling_ratio:
     distribution: int_uniform
     max: 3
-    min: 2
+    min: 1
+  prediction_thres:
+    distribution: uniform
+    max: 0.7
+    min: 0.3
   model:
     distribution: categorical
     values:

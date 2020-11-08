@@ -33,7 +33,7 @@ class GumbelBox(nn.Module):
 		boxes2 = Box(min_rep[:, 1, :], max_rep[:, 1, :])
 		pos_predictions = self.get_cond_probs(boxes1, boxes2)
 		neg_prediction = torch.ones(pos_predictions.size()).to('cuda:0')-pos_predictions
-		prediction = torch.stack([pos_predictions, neg_prediction], dim=1)
+		prediction = torch.stack([neg_prediction, pos_predictions], dim=1)
 		return prediction
 
 	def volumes(self, boxes, scale = 1.):
