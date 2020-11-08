@@ -127,14 +127,14 @@ def main(args):
 						'epoch': epoch,
 						'state_dict': model.state_dict(),
 						'optimizer': optimizer.state_dict()},
-					   args.save_to + 'best_checkpoint.pth')
+					   args.os.path.join(args.save_to, 'best_checkpoint.pth'))
 		if valid_acc >= 0.998:
 			used_id += 1
 			torch.save({'args': args,
 						'epoch': epoch,
 						'state_dict': model.state_dict(),
 						'optimizer': optimizer.state_dict()},
-					   args.save_to + 'checkpoint_%d.pth' % used_id)
+					   os.path.join(args.save_to, 'checkpoint_%d.pth' % used_id))
 		with open(history_file, "w") as f:
 			f.write(json.dumps({"best_valid_acc": best_valid_acc, "used_id": used_id}))
 
