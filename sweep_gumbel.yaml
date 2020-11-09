@@ -14,19 +14,15 @@ parameters:
     min: 9
   box_embedding_dim:
     distribution: int_uniform
-    max: 40
-    min: 5
+    max: 20
+    min: 10
   learning_rate:
     distribution: uniform
-    max: 0.05
-    min: 0.0005
+    max: 0.02
+    min: 0.001
   softplus_temp:
     distribution: uniform
     max: 10
-    min: 1
-  random_negative_sampling_ratio:
-    distribution: int_uniform
-    max: 3
     min: 1
   model:
     distribution: categorical
