@@ -3,27 +3,30 @@ method: bayes
 metric:
   name: valid accuracy
   goal: maximize
+early_terminate:
+  type: hyperband
+  min_iter: 10
+  eta: 2
 parameters:
+  epochs:
+    distribution: constant
+    value: 120
   log_batch_size:
     distribution: int_uniform
     max: 14
     min: 9
   box_embedding_dim:
     distribution: int_uniform
-    max: 50
-    min: 5
+    max: 20
+    min: 10
   learning_rate:
     distribution: uniform
-    max: 0.01
+    max: 0.02
     min: 0.001
   softplus_temp:
     distribution: uniform
     max: 10
     min: 1
-  random_negative_sampling_ratio:
-    distribution: int_uniform
-    max: 3
-    min: 2
   model:
     distribution: categorical
     values:
@@ -31,4 +34,4 @@ parameters:
   gumbel_beta:
     distribution: log_uniform
     max: 1
-    min: -5
+    min: -8

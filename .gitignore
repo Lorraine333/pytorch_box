@@ -2,3 +2,4 @@ sweep*
 !sweep_gumbel.yaml
 !sweep_softbox.yaml
 .idea
+checkpoints
