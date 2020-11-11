@@ -8,6 +8,9 @@ early_terminate:
   min_iter: 10
   eta: 2
 parameters:
+  epochs:
+    distribution: constant
+    value: 120
   log_batch_size:
     distribution: int_uniform
     max: 14

@@ -69,6 +69,24 @@ def test(test_data, thres, criterion, device, batch_size, model):
 
 	return loss / len(test_data), acc / len(test_data)
 
+def resume_and_test(resume_from, test_data_path, vocab_path):
+	ckpt = torch.load(resume_from)
+	args = ckpt['args']
+
+	test_dataset = PairDataset(test_data_path)
+	word2idx = get_vocab(vocab_path)
+
+	VOCAB_SIZE = len(word2idx)
+	NUN_CLASS = 2
+
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	model = box_model[args.model](VOCAB_SIZE, args.box_embedding_dim, NUN_CLASS, [1e-4, 0.2], [-0.1, 0], args).to(device)
+	model.load_state_dict(ckpt['state_dict'], strict=True)
+
+	criterion = torch.nn.CrossEntropyLoss().to(device)
+
+	loss, acc = test(test_dataset, args.prediction_thres, criterion, device, 2 ** args.log_batch_size, model)
+	print(f'Test Loss: {loss:.8f}\t|\tTest Acc: {acc * 100:.2f}%')
 
 def main(args):
 	wandb.init(project="basic_box", config=args)
@@ -86,14 +104,9 @@ def main(args):
 	criterion = torch.nn.CrossEntropyLoss().to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
-	start_epoch = 0
-	if args.resume_from is not None:
-		model, optimizer, ckpt_args, ckpt_epoch = restore_from(model, optimizer, args.resume_from)
-		start_epoch = ckpt_epoch + 1
-
 	wandb.watch(model)
 
-	for epoch in range(start_epoch, args.epochs):
+	for epoch in range(args.epochs):
 
 		start_time = time.time()
 		train_loss, train_acc = train_func(train_dataset, VOCAB_SIZE, args.random_negative_sampling_ratio, args.prediction_thres,
@@ -141,26 +154,35 @@ def main(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
+	# data parameters
 	parser.add_argument('--train_data_path', type=str, default='./data/full_wordnet/full_wordnet_noneg.tsv', help='path to train data')
 	parser.add_argument('--test_data_path', type=str, default='./data/full_wordnet/full_wordnet.tsv', help='path to test data')
 	parser.add_argument('--vocab_path', type=str, default='./data/full_wordnet/full_wordnet_vocab.tsv', help='path to vocab')
-	parser.add_argument('--resume_from', type=str, default=None, help='path to restore the model from')
+	# training parameters
+	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nvidia GPU)')
+	parser.add_argument('--random_negative_sampling_ratio', type=int, default=1, help='sample this many random negatives for each positive.')
 	parser.add_argument('--log_batch_size', type=int, default=13, help='batch size for training will be 2**LOG_BATCH_SIZE')
 	parser.add_argument('--learning_rate', type=float, default=5e-3, help='learning rate')
+	parser.add_argument('--epochs', type=int, default=80, help='number of epochs to train')
+	parser.add_argument('--prediction_thres', type=float, default=0.5, help='the probability threshold for prediction')
+	# model parameters
+	parser.add_argument('--model', type=str, default='softbox', help='model type: choose from softbox, gumbel')
 	parser.add_argument('--box_embedding_dim', type=int, default=40, help='box embedding dimension')
 	parser.add_argument('--softplus_temp', type=float, default=1.0, help='beta of softplus function')
-	parser.add_argument('--random_negative_sampling_ratio', type=int, default=1, help='sample this many random negatives for each positive.')
-	parser.add_argument('--epochs', type=int, default=80, help='number of epochs to train')
-	parser.add_argument('--no_cuda', action='store_true', default=False, help='disables CUDA training (eg. no nvidia GPU)')
-	parser.add_argument('--prediction_thres', type=float, default=0.5, help='the probability threshold for prediction')
-
-	parser.add_argument('--model', type=str, default='softbox', help='model type: choose from softbox, gumbel')
-	# gumbel box parameter
+	# gumbel box parameters
 	parser.add_argument('--gumbel_beta', type=float, default=1.0, help='beta value for gumbel distribution')
 	parser.add_argument('--scale', type=float, default=1.0, help='scale value for gumbel distribution')
-
+	# a parameter can be set to a model checkpoint path or left as None
+	# If set, the checkpoint will be resumed and tested; the user needs to specify test_data_path and vocab_path but not others
+	# Other parameters will be restored from the model checkpoint
+	parser.add_argument('--resume_and_test', type=str, default=None, help='path to a model checkpoint to be resumed and tested')
 
 	args = parser.parse_args()
 	args.save_to = "./checkpoints/" + args.model
-	main(args)
+
+	if args.resume_and_test is not None:
+		resume_and_test(args.resume_and_test, args.test_data_path, args.vocab_path)
+	else:
+		main(args)
+
 
